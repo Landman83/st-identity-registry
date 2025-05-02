@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "../storage/VerifierStorage.sol";
 import "../libraries/AttributeEvents.sol";
+import "../interfaces/IAttributeRegistry.sol";
 
 /**
  * @title Verifier
@@ -16,10 +17,30 @@ contract Verifier is Ownable, VerifierStorage {
     // Verifier permissions
     mapping(address => mapping(bytes32 => bool)) private _verifierPermissions;
     
+    // Reference to the attribute registry
+    address private _attributeRegistry;
+    
     /**
      * @dev Constructor
      */
     constructor() Ownable(msg.sender) {}
+    
+    /**
+     * @dev Sets the attribute registry address
+     * @param registry The address of the attribute registry
+     */
+    function setAttributeRegistry(address registry) external onlyOwner {
+        require(registry != address(0), "Verifier: registry cannot be zero address");
+        _attributeRegistry = registry;
+    }
+    
+    /**
+     * @dev Gets the current attribute registry address
+     * @return The address of the attribute registry
+     */
+    function getAttributeRegistry() external view returns (address) {
+        return _attributeRegistry;
+    }
     
     /**
      * @dev Modifier to check if the caller is an authorized third-party verifier
@@ -80,7 +101,18 @@ contract Verifier is Ownable, VerifierStorage {
         onlyVerifier
         canVerify(attributeType)
     {
+        // Emit the verification request event
         emit VerificationRequest(user, attributeType, value, 0, msg.sender);
+        
+        // Update the registry directly if it's set
+        if (_attributeRegistry != address(0)) {
+            try IAttributeRegistry(_attributeRegistry).setAttribute(user, attributeType, value) {
+                // Success - registry updated
+            } catch {
+                // If registry update fails, the event is still emitted
+                // This maintains backward compatibility
+            }
+        }
     }
     
     /**
@@ -100,7 +132,18 @@ contract Verifier is Ownable, VerifierStorage {
             require(expiryTimestamp > block.timestamp, "Verifier: expiry must be in the future");
         }
         
+        // Emit the verification request event
         emit VerificationRequest(user, attributeType, value, expiryTimestamp, msg.sender);
+        
+        // Update the registry directly if it's set
+        if (_attributeRegistry != address(0)) {
+            try IAttributeRegistry(_attributeRegistry).setAttributeWithExpiry(user, attributeType, value, expiryTimestamp) {
+                // Success - registry updated
+            } catch {
+                // If registry update fails, the event is still emitted
+                // This maintains backward compatibility
+            }
+        }
     }
     
     /**
@@ -113,7 +156,18 @@ contract Verifier is Ownable, VerifierStorage {
         onlyVerifier
         canVerify(attributeType)
     {
+        // Emit the revocation request event
         emit RevocationRequest(user, attributeType, msg.sender);
+        
+        // Update the registry directly if it's set
+        if (_attributeRegistry != address(0)) {
+            try IAttributeRegistry(_attributeRegistry).revokeAttribute(user, attributeType) {
+                // Success - registry updated
+            } catch {
+                // If registry update fails, the event is still emitted
+                // This maintains backward compatibility
+            }
+        }
     }
     
     /**

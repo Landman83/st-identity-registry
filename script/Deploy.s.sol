@@ -35,6 +35,10 @@ contract DeployIdentityRegistry is Script {
         AttributeRegistry registry = new AttributeRegistry(address(verifier));
         console.log("AttributeRegistry deployed at:", address(registry));
         
+        // Set up bidirectional connection between contracts
+        verifier.setAttributeRegistry(address(registry));
+        console.log("Connected Verifier to AttributeRegistry");
+        
         // Stop broadcasting transactions
         vm.stopBroadcast();
         
@@ -51,18 +55,33 @@ contract DeployIdentityRegistry is Script {
 /**
  * @title DeployPolygonMainnet
  * @dev Script specifically configured for Polygon mainnet deployment
+ * @notice Run with: source .env && forge script script/Deploy.s.sol:DeployPolygonMainnet --broadcast
  */
 contract DeployPolygonMainnet is Script {
     function run() external {
-        // Get the private key from the environment
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        // Read the private key from environment and process it manually
+        string memory pkString = vm.envString("DEPLOYER_PRIVATE_KEY");
+        
+        // Manually add 0x prefix if it's missing
+        if (bytes(pkString).length > 0 && bytes(pkString)[0] != "0" && bytes(pkString)[1] != "x") {
+            pkString = string(abi.encodePacked("0x", pkString));
+        }
+        
+        console.log("Using private key format:", pkString);
+        
+        // Convert hex string to uint256
+        uint256 deployerPrivateKey = vm.parseUint(pkString);
+        
+        // Verify the address matches what we expect
         address deployer = vm.addr(deployerPrivateKey);
+        address expectedDeployer = vm.envAddress("DEPLOYER_ADDRESS");
+        require(deployer == expectedDeployer, "Private key does not match expected address");
         
         // Start broadcasting transactions
         vm.startBroadcast(deployerPrivateKey);
         
         // Log deployment information
-        console.log("Deploying contracts to Polygon mainnet (Chain ID:", block.chainid, ")");
+        console.log("Deploying contracts to network (Chain ID:", block.chainid, ")");
         console.log("Deployer address:", deployer);
         
         // Deploy the Verifier contract
@@ -72,6 +91,10 @@ contract DeployPolygonMainnet is Script {
         // Deploy the AttributeRegistry contract with the Verifier as the initial verifier
         AttributeRegistry registry = new AttributeRegistry(address(verifier));
         console.log("AttributeRegistry deployed at:", address(registry));
+        
+        // Set up bidirectional connection between contracts
+        verifier.setAttributeRegistry(address(registry));
+        console.log("Connected Verifier to AttributeRegistry");
         
         // Stop broadcasting transactions
         vm.stopBroadcast();
